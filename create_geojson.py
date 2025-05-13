@@ -4,9 +4,9 @@ import time
 import glob
 from pathlib import Path
 from pprint import pprint
-from typing import TypeAlias
 from datetime import datetime
 from argparse import ArgumentParser
+from typing import TypeAlias, Literal
 
 import numpy as np
 import pandas as pd
@@ -42,38 +42,28 @@ def get_squares(ds:xr.Dataset) -> list[list]:
     return squares
 
 
-def calculate_particles(ds:xr.Dataset, point:list, variable_name:str):
-    """Variable name eg. pm2p5"""
-    # Etsii sel() funktiolla partikkelien määrän ensimmäisenä tuntina annetussa sijainnissa
-    measurement = float(ds.sel({"longitude":point[0], "latitude":point[1], "time":ds.variables["time"][0]}, method="nearest").variables[variable_name].data)
-    return measurement
-
-
-GeoJSON: TypeAlias = dict
+GeoJSON: TypeAlias = dict[Literal["id", "type", "geometry"]]
 Measurements: TypeAlias = list[list]
-def _get_geodata(ds:xr.Dataset, variable_name:str) -> GeoJSON:
+def _get_geodata(ds:xr.Dataset) -> GeoJSON:
     print("Creating new geojson...")
     shapes = get_squares(ds)
 
     geojson:GeoJSON = { # sijainnit id:llä
         "type": "FeatureCollection",
-        "features": []
+        "features": [],
+        "limits": None
     }
     start_time = time.perf_counter()
     idx = 0
     for centroid, boundary in shapes:
         idx += 1
         print(f"{idx:03d}/{len(shapes)} {time.perf_counter()-start_time}sec", end="\r")
-        measurement = calculate_particles(ds, centroid, variable_name)
         centroid = [round(centroid[0], 2), round(centroid[1], 2)]
         # Add to geojson
         geojson["features"].append(
             {
                 "id": str(centroid), # NOTE 
                 "type": "Feature",
-                "properties": {
-                    "measurement": measurement # Tallennetaan arvo ettei sitä tarvitse laskea uudestaan
-                },
                 "geometry": {
                     "type": "Polygon",
                     "coordinates": [boundary], # Plotly piirtää kuviot näiden perusteella
@@ -92,7 +82,7 @@ def from_forecast(origin:str, target:str):
     dataset:xr.Dataset = _get_data_set(origin)
 
     print("Getting geojson...")
-    geojson = _get_geodata(dataset, "pm10_conc")
+    geojson = _get_geodata(dataset)
 
     print("Writing geojson...")
     with open(target, "w") as file:
