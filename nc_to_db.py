@@ -42,10 +42,10 @@ def get_points(ds:xr.Dataset) -> list[tuple[float, float]]:
 
 GeoJSON: TypeAlias = dict
 Measurements: TypeAlias = list[list]
-def _get_geodata(ds:xr.Dataset, variable_name:str) -> GeoJSON:
+def _get_geodata(ds:xr.Dataset, variable_name:str, db_connection_string:str) -> GeoJSON:
     date:str = ds.FORECAST.split()[1].split("+")[0] # '20250510'
     forecast_datetime = datetime.strptime(date, "%Y%m%d")
-    with sqlite3.connect("AirQuality.db") as conn:
+    with sqlite3.connect(db_connection_string) as conn:
         cursor = conn.cursor()
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.commit()
@@ -53,6 +53,7 @@ def _get_geodata(ds:xr.Dataset, variable_name:str) -> GeoJSON:
         idx = 0
         data_points = len(ds.time) * len(ds.level) * len(ds.latitude) * len(ds.longitude)
         for leadtime_idx, ltime in enumerate(ds.time):
+            print("leadtime: " + str(leadtime_idx))
             for level_idx, _ in enumerate(ds.level):
                 for lat_idx, lat in enumerate(ds.latitude):
                     for lon_idx, lon in enumerate(ds.longitude):
@@ -112,7 +113,7 @@ def store_to_database(origin:str, db_connection_string:str):
     dataset:xr.Dataset = _get_data_set(filepath)
 
     print("Saving to db...")
-    _get_geodata(dataset, "pm10_conc")
+    _get_geodata(dataset, "pm10_conc", db_connection_string)
 
     print("Done.")
     
