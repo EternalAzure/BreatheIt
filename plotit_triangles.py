@@ -10,8 +10,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 import plotly.express as px
-import matplotlib.tri as mtri
-import matplotlib.pyplot as plt
 from scipy.spatial import Delaunay
 
 px.colors
