@@ -7,8 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output, State, Patch
 
-import geodata
-from geodata import ForecastQuery, AnalysisQuery, GeoJSON
+import src.geodata as geodata
+from src.geodata import ForecastQuery, AnalysisQuery, GeoJSON
 
 
 app = Dash(__name__)

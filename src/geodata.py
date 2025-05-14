@@ -6,12 +6,13 @@ import pandas as pd
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TypeAlias, Literal, Optional
-from decimal import Decimal, getcontext
 
 import numpy as np
 import xarray as xr
 
-getcontext().prec = 15  # Set precision as needed
+
+GeoJSON: TypeAlias = dict[Literal["type", "center", "features", "limits"]]
+GeoJSONlimits: TypeAlias = dict[Literal["north", "south", "west", "east"]]
 
 @dataclass
 class ForecastQuery:
@@ -43,7 +44,7 @@ class ForecastQuery:
     time: datetime
     leadtime: int
     model: Optional[str]
-    limits: Optional[dict]
+    limits: Optional[GeoJSONlimits]
 
 @dataclass
 class AnalysisQuery:
@@ -139,7 +140,7 @@ def query_forecast_nc(query:ForecastQuery):
 
     values_expanded = values[:, :, np.newaxis] # Make it 3D so we can concatenate it
 
-    # Add values to coordinates 
+    # Add values to coordinates
     results = np.concatenate((values_expanded, coordinates), axis=2)
 
     # Add leadtime to coordinates
@@ -178,7 +179,6 @@ def get_dataframe(query:ForecastQuery|AnalysisQuery):
     raise ValueError(f"Query must be instance of either {ForecastQuery.__name__} or {AnalysisQuery.__name__}")
 
 
-GeoJSON: TypeAlias = dict[Literal["type", "center", "features", "limits"]]
 def get_geojson(geojson_path:str):
     if os.path.exists(geojson_path):
         with open(geojson_path, "r") as file:
@@ -191,6 +191,7 @@ def get_geojson(geojson_path:str):
     for file in geojsons:
         print(file)
     raise ValueError(f"No files found with {geojson_path=}")
+
 
 
 if __name__ == "__main__":

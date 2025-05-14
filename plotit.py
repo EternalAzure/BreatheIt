@@ -6,8 +6,8 @@ from typing import TypeAlias, Literal
 import pandas as pd
 import plotly.express as px
 
-import geodata
-from geodata import ForecastQuery, AnalysisQuery, GeoJSON
+import src.geodata as geodata
+from src.geodata import ForecastQuery, AnalysisQuery, GeoJSON
 
 
 
