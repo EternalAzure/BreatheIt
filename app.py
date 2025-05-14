@@ -1,10 +1,11 @@
+import time
 import pandas as pd
 from datetime import datetime
 
 import plotly
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output, State
+from dash import Dash, dcc, html, Input, Output, State, Patch
 
 import geodata
 from geodata import ForecastQuery, AnalysisQuery, GeoJSON
@@ -12,17 +13,6 @@ from geodata import ForecastQuery, AnalysisQuery, GeoJSON
 
 app = Dash(__name__)
 
-app.layout = html.Div([
-    #html.H4('PM10 particles in air'),
-    html.P("Select a region:"),
-    dcc.RadioItems(
-        id='region',
-        options=["North", "West", "East", "South", "Venice"],
-        value="Venice",
-        inline=True
-    ),
-    dcc.Graph(id="graph"),
-])
 
 def get_geojson(region) -> GeoJSON:
     match region:
@@ -43,80 +33,89 @@ def get_geojson(region) -> GeoJSON:
     return geodata.get_geojson(geojson_path)
 
 
-def animated_map_figure(variable:str, geojson:GeoJSON):
-    df:pd.DataFrame = geodata.get_dataframe(ForecastQuery(
-        variable=variable,
-        time=datetime(2025, 5, 10, 0, 0),
-        leadtime=22,
-        model=None,
-        limits=geojson["limits"]
-    ))
-    locations = df.iloc[:, 0].tolist() # All ids aka every row of first column
-    color_max = min(df.iloc[:,1].max(), 30)
-    fig = px.choropleth_map(
-        df,
-        geojson,
-        locations=locations,
-        color="value",
-        range_color=[2, color_max],
-        color_continuous_scale="Bupu",
-        opacity=0.3,
-        animation_frame="leadtime"
-    )
-    fig.update_layout(map_zoom=6)
-    return fig
-
-
 def map_figure(variable, geojson:GeoJSON):
     df:pd.DataFrame = geodata.get_dataframe(ForecastQuery(
         variable=variable,
         time=datetime(2025, 5, 10, 0, 0),
         leadtime=0,
         model=None,
-        limits=geojson["limits"]
+        limits=None
     ))
     locations = df.iloc[:, 0].tolist() # All ids aka every row of first column
     color_max = min(df.iloc[:,1].max(), 30)
-    fig = px.choropleth_map(
-        df,
-        geojson,
+    fig = go.Figure(go.Choroplethmap(
+        colorscale="Bupu",
+        featureidkey="id",
+        geojson=geojson,
         locations=locations,
-        color="value",
-        range_color=[2, color_max],
-        color_continuous_scale="Bupu",
-        opacity=0.3
-    )
-    fig.update_layout(map_zoom=3)
-    return fig
-
-
-
-@app.callback(
-    Output('graph', 'figure'),
-    Input('region', 'value'),
-    prevent_initial_call=False
-)
-def display_choropleth(region:str):
-    variable="PM10"
-    geojson = get_geojson(region)
-    
-    fig:go.Figure=None
-    if region == "Venice":
-        fig = animated_map_figure(variable, geojson)
-    else:
-        fig = map_figure(variable, geojson)
-
-    fig.update_geos(projection_type="natural earth")
+        marker=go.choroplethmap.Marker(opacity=0.3),
+        z=df["value"],
+        zmin=2,
+        zmax=color_max
+    ))
     fig.update_layout(
+        map_zoom=4,
         map_style="carto-positron",
         map_center=geojson["center"],
         margin={"r":0,"t":25,"l":0,"b":0}, 
         title_text=f"{variable} forecast",
         height=700)
     fig.update_traces(marker_line_width=0)
-
     return fig
 
 
+
+@app.callback(
+    Output("graph", "figure"),
+    Input("region", "value"),
+    prevent_initial_call=True
+)
+def change_region(region:str):
+    print(region)
+    start = time.perf_counter()
+    geojson = get_geojson(region)
+    fig = Patch()
+    fig.data[0].geojson = geojson
+    end = time.perf_counter()
+    print(f"Region change: {end-start:.2f}sec")
+    return fig
+
+
+@app.callback(
+    Output("graph", "figure", allow_duplicate=True),
+    Input("color", "value"),
+    prevent_initial_call=True
+)
+def change_color(color:str):
+    zones = [(0,"#fcfafa"), (0.19,"#fcfafb"), (0.20,"#c7dff0"), (0.39,"#c7dff1"), (0.4,"#77baed"), (0.59,"#77baee"), (0.6,"#943fa2"), (0.79,"#943fa1"), (0.8,"#4d004a"), (1,"#4d004b")]
+    bupu = [(0,"#f7fcfd"), (0.11,"#e0ecf4"), (0.33,"#bfd3e6"), (0.44,"#9ebcda"), (0.55,"#8c96c6"), (0.66,"#8c6bb1"), (0.77,"#88419d"), (0.88,"#810f7c"), (1,"#4d004b")]
+    fig = Patch()
+    fig.data[0].colorscale = color
+    if color == "Gradient":
+        fig.data[0].colorscale = bupu
+    if color == "Zones":
+        fig.data[0].colorscale = zones
+    
+    return fig
+
+
+
+app.layout = html.Div([
+    #html.H4("PM10 particles in air"),
+    html.P("Select a region:"),
+    dcc.RadioItems(
+        id="region",
+        options=["North", "West", "East", "South", "Venice"],
+        value="Venice",
+        inline=True
+    ),
+    dcc.RadioItems(
+        id="color",
+        options=["Gradient", "Zones", "Viridis"],
+        value="Gradient",
+        inline=True
+    ),
+    dcc.Graph(id="graph", figure=map_figure("PM10", get_geojson("Venice"))),
+])
 
 app.run(debug=True)
